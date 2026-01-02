@@ -1,6 +1,12 @@
 #include "proc.hpp"
 #include "tls.hpp"
 #include <cassert>
+#include <cstdint>
+#include <cstdlib>
+#include <mutex>
+#include <pthread.h>
+#include <queue>
+#include <sys/types.h>
 #include <unistd.h>
 
 extern int main();
@@ -8,13 +14,215 @@ extern int main();
 M m0;
 GPP g0;
 
+static struct schedt {
+    std::mutex lock;
+    std::queue<GPP *> runq;
+    
+    int64_t nms;
+    int64_t nidlems;
+    int64_t nrunningms;
+    std::queue<M *> idlemq;
+    bool mainstarted;
+} sched;
+
+extern "C" void *mstart_stub(void *arg);
+
+extern "C" void mcall(void (*fn)(void));
+
+extern "C" void gogo(GPP *sched);
+
+extern "C" void *getCallerPC();
+
+extern "C" void *getCallerSP();
+
+void mpark() {
+    auto *mp = getg()->m;
+    pthread_mutex_lock(&mp->lock);
+    if (--mp->count < 0) {
+        pthread_cond_wait(&mp->cond, &mp->lock);
+    }
+    pthread_mutex_unlock(&mp->lock);
+}
+
+void munpark(M *mp) {
+    pthread_mutex_lock(&mp->lock);
+    if (++mp->count >= 0) {
+        pthread_cond_signal(&mp->cond);
+    }
+    pthread_mutex_unlock(&mp->lock);
+}
+
+void stopm() {
+    /* We must already hold sched.lock in caller
+     * I don't know if there are better ways to
+     * test `mustHeldLock` */
+    assert(!sched.lock.try_lock());
+
+    sched.nrunningms--;
+    sched.nidlems++;
+    sched.idlemq.push(getg()->m);
+
+    if (sched.nrunningms == 0 && sched.runq.empty()) {
+        throw("all gpproutines are asleep - deadlock!");
+    }
+    sched.lock.unlock();
+    mpark();
+    sched.lock.lock();
+    sched.nrunningms++;
+    sched.nidlems--;
+    sched.idlemq.pop();
+}
+
+void wakem() {
+    /* We must already hold sched.lock in caller
+     * I don't know if there are better ways to
+     * test `mustHeldLock` */
+    assert(!sched.lock.try_lock());
+
+    if (sched.nidlems > 0) {
+        M *mp = sched.idlemq.front();
+        munpark(mp);
+    } else if (sched.nms < GPPMAXPROC) {
+        /* start new m */
+        sched.nms++;
+        M *mp = new M;
+        mp->g0 = new GPP;
+        mp->g0->m = mp;
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_attr_setstacksize(&attr, STACKSIZE);
+
+        pthread_t tid;
+        pthread_create(&tid, &attr, mstart_stub, mp);
+        pthread_detach(tid);
+    }
+}
+
+void mexit() {
+    auto *mp = getg()->m;
+    if (mp == &m0) {
+        sched.lock.lock();
+        sched.nrunningms--;
+        sched.nms--;
+        if (sched.nrunningms == 0 && sched.runq.empty()) {
+            throw("all gpproutines are asleep - deadlock!");
+        }
+        sched.lock.unlock();
+        mpark();
+        throw("wake up exited main thread!");
+    }
+
+    delete mp;
+    sched.lock.lock();
+    sched.nrunningms--;
+    sched.nms--;
+    if (sched.nrunningms == 0 && sched.runq.empty()) {
+        throw("all gpproutines are asleep - deadlock!");
+    }
+    sched.lock.unlock();
+}
+
+void schedule() {
+    for (;;) {
+        std::unique_lock< std::mutex > lk(sched.lock);
+        if (sched.runq.empty()) {
+            stopm();
+            continue;
+        }
+        GPP *gp = sched.runq.front();
+        sched.runq.pop();
+        lk.unlock();
+
+        auto *mp = getg()->m;
+        mp->curg = gp;
+        gp->m = mp;
+        /* switch to gp */
+        gogo(gp);
+    }
+}
+
+static void mstart0(M *mp) {
+    mp->g0->sched.sp = getCallerSP();
+    mp->g0->sched.pc = getCallerPC();
+    mp->g0->sched.bp = 0;
+
+    schedule();
+}
+
+static void gppexit() {
+    auto *gp = getg();
+    setg(nullptr);
+    gp->m->curg = nullptr;
+
+    delete[] gp->stack;
+    delete gp;
+
+    mcall(schedule);
+}
+
+static GPP *allocg(void (*fn)()) {
+    auto *newg = new GPP;
+    newg->m = nullptr;
+    newg->stack = new char[STACKSIZE];
+    newg->sched.sp = newg->stack + STACKSIZE - 8;
+    newg->sched.pc = (void *)fn;
+    newg->sched.bp = 0;
+
+    *static_cast<uintptr_t *>(newg->sched.sp) = reinterpret_cast<uintptr_t>(&gppexit);
+    return newg;
+}
+
+void newproc(void (*fn)()) {
+    auto *newg = allocg(fn);
+    sched.lock.lock();
+    sched.runq.push(newg);
+    sched.lock.unlock();
+
+    if (sched.mainstarted) {
+        sched.lock.lock();
+        wakem();
+        sched.lock.unlock();
+    }
+}
+
+static void main_main() {
+    sched.mainstarted = true;
+    int ret = main();
+    exit(ret);
+}
+
 extern "C" {
+    void schedinit() {
+        sched.nms = 1;
+        sched.nidlems = 0;
+        sched.nrunningms = 1;
+        sched.mainstarted = false;
+    }
+
+    /* Assembly need to call this function
+    * So it's name must not be mangled by C++ compiler.
+    */
     void mstart() {
         auto *gp = getg();
         auto *mp = gp->m;
         assert(mp->g0 == gp);
         mp->curg = nullptr;
-        mp->tid = getpid();
-        main();
+        mp->tid = pthread_self();
+
+        mp->count = 0; /* not waiting */
+        mp->lock = PTHREAD_MUTEX_INITIALIZER;
+        mp->cond = PTHREAD_COND_INITIALIZER;
+
+        /* Init g0.sched then call schedule()
+         * Never returns */
+        mstart0(mp);
+
+        /* gogo(&mp->g0->sched) would reach here */
+        mexit();
+    }
+
+    void mstart_main() {
+        newproc(main_main);
+        mstart();
     }
 }

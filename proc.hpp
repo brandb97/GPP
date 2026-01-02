@@ -1,7 +1,9 @@
 #ifndef _GPP_HPP_
 #define _GPP_HPP_
 
+#include <cstdint>
 #include <sys/types.h>
+#include <pthread.h>
 
 struct GPPState {
     // Offset is 0, known to assembly code.
@@ -20,6 +22,8 @@ struct GPP {
 
     // Offset is 8, known to assembly code.
     struct GPPState sched;
+
+    char *stack = nullptr;
 };
 
 struct M {
@@ -28,7 +32,26 @@ struct M {
     // Offset is 8, known to assembly code.
     struct GPP *curg;
 
-    pid_t tid;
+    pthread_t tid;
+
+    pthread_mutex_t lock;
+    pthread_cond_t cond;
+    int64_t count;
 };
+
+/* MAX number of threads we allow */
+constexpr int64_t GPPMAXPROC = 4;
+
+/* 8 MB stack, this is what `ulimit -s` outputs in my machine */
+constexpr int64_t STACKSIZE = 8 << 20;
+
+extern void mpark();
+extern void munpark(M *mp);
+extern void stopm();
+extern void wakem();
+extern "C" void mstart();
+extern void mexit();
+extern void schedule();
+extern void newproc(void (*fn)());
 
 #endif // _GPP_HPP_
