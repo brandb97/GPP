@@ -77,10 +77,14 @@ getCallerBP:
 
 /* mstart_stub(M *m) */
 mstart_stub:
+    push %rbp
+    mov %rsp, %rbp
     /* setg to g0 */
     mov 0(%rdi), %rdi /* g0 = m->g0 */
     call setg
     call mstart
+    mov %rbp, %rsp
+    pop %rbp
     ret
 
 /* void mcall(void (*fn)(void))
