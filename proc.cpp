@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstdio>
+#include <vector>
 #include <mutex>
 #include <pthread.h>
 #include <queue>
@@ -22,7 +23,7 @@ static struct schedt {
     int64_t nms;
     int64_t nidlems;
     int64_t nrunningms;
-    std::queue<M *> idlemq;
+    std::vector<M *> allm;
     bool mainstarted;
 } sched;
 
@@ -71,7 +72,8 @@ void stopm() {
 
     sched.nrunningms--;
     sched.nidlems++;
-    sched.idlemq.push(getg()->m);
+    auto *mp = getg()->m;
+    mp->status = M::IDLE;
 
     if (sched.nrunningms == 0 && sched.runq.empty()) {
         throw_internal("all gpproutines are asleep - deadlock!");
@@ -81,7 +83,7 @@ void stopm() {
     sched.lock.lock();
     sched.nrunningms++;
     sched.nidlems--;
-    sched.idlemq.pop();
+    mp->status = M::RUNNING;
 }
 
 void wakem() {
@@ -90,10 +92,7 @@ void wakem() {
      * test `mustHeldLock` */
     assert(!sched.lock.try_lock());
 
-    if (sched.nidlems > 0) {
-        M *mp = sched.idlemq.front();
-        munpark(mp);
-    } else if (sched.nms < GPPMAXPROC) {
+    if (sched.nidlems == 0 && sched.nms < GPPMAXPROC) {
         /* start new m */
         sched.nms++;
         sched.nrunningms++;
@@ -107,6 +106,30 @@ void wakem() {
         pthread_t tid;
         pthread_create(&tid, &attr, mstart_stub, mp);
         pthread_detach(tid);
+    } else {
+        // Wake up a random m, prefer idle m
+        int rand = random();
+
+        int target_idx = 0;
+        auto target_status = M::IDLE;
+        if (sched.nidlems > 0) {
+            target_idx = rand % sched.nidlems;
+            target_status = M::IDLE;
+        } else {
+            assert(sched.nrunningms > 0);
+            target_idx = rand % sched.nrunningms;
+            target_status = M::RUNNING;
+        }
+
+        for (auto *mp : sched.allm) {
+            if (mp->status == target_status) {
+                if (target_idx == 0) {
+                    munpark(mp);
+                    break;
+                }
+                target_idx--;
+            }
+        }
     }
 }
 

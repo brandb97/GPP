@@ -37,6 +37,11 @@ struct M {
     pthread_mutex_t lock;
     pthread_cond_t cond;
     int64_t count;
+
+    enum {
+        IDLE,
+        RUNNING,
+    } status;
 };
 
 /* MAX number of threads we allow */
