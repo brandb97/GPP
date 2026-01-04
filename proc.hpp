@@ -42,8 +42,8 @@ struct M {
 /* MAX number of threads we allow */
 constexpr int64_t GPPMAXPROC = 4;
 
-/* 8 MB stack, this is what `ulimit -s` outputs in my machine */
-constexpr int64_t STACKSIZE = 8 << 20;
+/* 8 KB stack, go use this size for g0 stacks */
+constexpr int64_t STACKSIZE = 8 << 10;
 
 extern void mpark();
 extern void munpark(M *mp);

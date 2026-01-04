@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
+#include <cstdio>
 #include <mutex>
 #include <pthread.h>
 #include <queue>
@@ -35,6 +36,16 @@ extern "C" void *getCallerPC();
 
 extern "C" void *getCallerSP();
 
+extern "C" void *getCallerBP();
+
+extern "C" void systemstack(void (*fn)(void *arg), void *arg);
+
+static void throw_internal(const char *msg) {
+    // print out all the frames to stderr
+    fprintf(stderr, "Error: %s\n", msg);
+    exit(1);
+}
+
 void mpark() {
     auto *mp = getg()->m;
     pthread_mutex_lock(&mp->lock);
@@ -63,7 +74,7 @@ void stopm() {
     sched.idlemq.push(getg()->m);
 
     if (sched.nrunningms == 0 && sched.runq.empty()) {
-        throw("all gpproutines are asleep - deadlock!");
+        throw_internal("all gpproutines are asleep - deadlock!");
     }
     sched.lock.unlock();
     mpark();
@@ -85,6 +96,7 @@ void wakem() {
     } else if (sched.nms < GPPMAXPROC) {
         /* start new m */
         sched.nms++;
+        sched.nrunningms++;
         M *mp = new M;
         mp->g0 = new GPP;
         mp->g0->m = mp;
@@ -105,11 +117,11 @@ void mexit() {
         sched.nrunningms--;
         sched.nms--;
         if (sched.nrunningms == 0 && sched.runq.empty()) {
-            throw("all gpproutines are asleep - deadlock!");
+            throw_internal("all gpproutines are asleep - deadlock!");
         }
         sched.lock.unlock();
         mpark();
-        throw("wake up exited main thread!");
+        throw_internal("wake up exited main thread!");
     }
 
     delete mp;
@@ -117,7 +129,7 @@ void mexit() {
     sched.nrunningms--;
     sched.nms--;
     if (sched.nrunningms == 0 && sched.runq.empty()) {
-        throw("all gpproutines are asleep - deadlock!");
+        throw_internal("all gpproutines are asleep - deadlock!");
     }
     sched.lock.unlock();
 }
@@ -144,20 +156,26 @@ void schedule() {
 static void mstart0(M *mp) {
     mp->g0->sched.sp = getCallerSP();
     mp->g0->sched.pc = getCallerPC();
-    mp->g0->sched.bp = 0;
+    mp->g0->sched.bp = getCallerBP();
+
+    schedule();
+}
+
+/* Must be on system stack */
+static void gppexit_systemstack() {
+    auto *g0 = getg();
+    auto *gp = g0->m->curg;
+    g0->m->curg = nullptr;
+
+    delete[] gp->stack;
+    delete gp;
 
     schedule();
 }
 
 static void gppexit() {
-    auto *gp = getg();
-    setg(nullptr);
-    gp->m->curg = nullptr;
-
-    delete[] gp->stack;
-    delete gp;
-
-    mcall(schedule);
+    auto *fn = reinterpret_cast<void (*)(void *)>(&gppexit_systemstack);
+    systemstack(fn, nullptr);
 }
 
 static GPP *allocg(void (*fn)()) {

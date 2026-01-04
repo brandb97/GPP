@@ -14,6 +14,7 @@ __dso_handle:
     .global systemstack
     .global getCallerSP
     .global getCallerPC
+    .global getCallerBP
     .global gogo
     /* _start need to call __libc_start_main()
      * _libc_start_main arguments:
@@ -70,10 +71,14 @@ getCallerPC:
     mov 8(%rbp), %rax
     ret
 
+getCallerBP:
+    mov (%rbp), %rax
+    ret
+
 /* mstart_stub(M *m) */
 mstart_stub:
     /* setg to g0 */
-    mov 0(%rdi), %rdi
+    mov 0(%rdi), %rdi /* g0 = m->g0 */
     call setg
     call mstart
     ret
@@ -86,9 +91,6 @@ mstart_stub:
  * in this case.
  */
 mcall:
-    call getg
-    test %rax, %rax
-    je .mcall_fn
     /* save callee-saved registers */
     push %rbx
     push %r12
@@ -96,6 +98,7 @@ mcall:
     push %r14
     push %r15
     /* save pc/bp/sp to current g->sched */
+    call getg
     mov .restore(%rip), %rcx
     mov %rcx, 24(%rax)
     mov %rbp, 16(%rax)
@@ -110,9 +113,7 @@ mcall:
     mov %rdx, %rdi
     call setg
     pop %rdi
-
-.mcall_fn:
-    /* fn should never return */
+    /* call fn, fn should never return */
     call *%rdi
 .restore:
     /* restore callee-saved registers */

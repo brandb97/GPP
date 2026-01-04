@@ -3,13 +3,13 @@
 #include "gpp.hpp"
 
 void goroutine1() {
-    for (;;) {
+    for (int i = 0; i < 10; i++) {
         std::cerr << "A";
     }
 }
 
 void goroutine2() {
-    for (;;) {
+    for (int i = 0; i < 10; i++) {
         std::cerr << "B";
     }
 }
