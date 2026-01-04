@@ -103,7 +103,7 @@ mcall:
     push %r15
     /* save pc/bp/sp to current g->sched */
     call getg
-    mov .restore(%rip), %rcx
+    lea .restore(%rip), %rcx
     mov %rcx, 24(%rax)
     mov %rbp, 16(%rax)
     mov %rsp, 8(%rax)

@@ -9,3 +9,9 @@ void GPP(void (*fn)()) {
     auto *arg = reinterpret_cast<void *>(fn);
     systemstack(ptr, arg);
 }
+
+namespace gpp {
+    void yield() {
+        gppsched();
+    }
+}

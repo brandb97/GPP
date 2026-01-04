@@ -45,7 +45,7 @@ struct M {
 };
 
 /* MAX number of threads we allow */
-constexpr int64_t GPPMAXPROC = 4;
+constexpr int64_t GPPMAXPROC = 1;
 
 /* 8 KB stack, go use this size for g0 stacks */
 constexpr int64_t STACKSIZE = 8 << 10;
@@ -58,5 +58,6 @@ extern "C" void mstart();
 extern void mexit();
 extern void schedule();
 extern void newproc(void (*fn)());
+extern void gppsched();
 
 #endif // _GPP_HPP_

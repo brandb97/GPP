@@ -201,6 +201,20 @@ static void gppexit() {
     systemstack(fn, nullptr);
 }
 
+static void gppsched_systemstack() {
+    auto *g0 = getg();
+    auto *gp = g0->m->curg;
+    g0->m->curg = nullptr;
+    std::unique_lock<std::mutex> lk(sched.lock);
+    sched.runq.push(gp);
+    lk.unlock();
+    schedule();
+}
+
+void gppsched() {
+    mcall(gppsched_systemstack);
+}
+
 static GPP *allocg(void (*fn)()) {
     auto *newg = new GPP;
     newg->m = nullptr;

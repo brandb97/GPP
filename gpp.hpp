@@ -3,4 +3,8 @@
 
 void GPP(void (*fn)());
 
+namespace gpp {
+    void yield();
+}
+
 #endif // _GPP_HPP_

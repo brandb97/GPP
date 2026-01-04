@@ -18,6 +18,6 @@ int main() {
     GPP(goroutine1);
     GPP(goroutine2);
     std::cerr << "Hello, World!" << std::endl;
-    sleep(1);
+    gpp::yield();
     return 0;
 }
