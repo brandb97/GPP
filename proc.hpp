@@ -1,5 +1,5 @@
-#ifndef _GPP_HPP_
-#define _GPP_HPP_
+#ifndef _GPP_PROC_HPP_
+#define _GPP_PROC_HPP_
 
 #include <cstdint>
 #include <sys/types.h>
@@ -59,5 +59,7 @@ extern void mexit();
 extern void schedule();
 extern void newproc(void (*fn)());
 extern void gppsched();
+extern void gpppark();
+extern void gppunpark(GPP *gp);
 
-#endif // _GPP_HPP_
+#endif // _GPP_PROC_HPP_

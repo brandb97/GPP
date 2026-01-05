@@ -215,6 +215,24 @@ void gppsched() {
     mcall(gppsched_systemstack);
 }
 
+static void gpppark_systemstack() {
+    auto *g0 = getg();
+    g0->m->curg = nullptr;
+    schedule();
+}
+
+void gpppark() {
+    mcall(gpppark_systemstack);
+}
+
+void gppunpark(GPP *gp) {
+    std::unique_lock<std::mutex> lk(sched.lock);
+    sched.runq.push(gp);
+    auto wakemfn = reinterpret_cast<void (*)(void *)>(&wakem);
+    systemstack(wakemfn, nullptr);
+    lk.unlock();
+}
+
 static GPP *allocg(void (*fn)()) {
     auto *newg = new GPP;
     newg->m = nullptr;

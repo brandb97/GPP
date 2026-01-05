@@ -1,5 +1,5 @@
-#ifndef _GPP_TLS_H_
-#define _GPP_TLS_H_
+#ifndef _GPP_TLS_HPP_
+#define _GPP_TLS_HPP_
 
 struct TLS {
     struct GPP *g;
@@ -8,4 +8,4 @@ struct TLS {
 extern "C" GPP *getg();
 extern "C" void setg(GPP *g);
 
-#endif // _GPP_TLS_H_
+#endif // _GPP_TLS_HPP_
