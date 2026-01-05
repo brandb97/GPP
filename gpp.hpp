@@ -13,6 +13,8 @@ namespace gpp {
 
     extern void Exit();
 
+    extern void SetNProcs(int64_t n);
+
     class ConditionVariable {
     public:
         ConditionVariable() = default;

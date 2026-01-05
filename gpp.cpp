@@ -21,6 +21,10 @@ namespace gpp {
         gppexit();
     }
 
+    void SetNProcs(int64_t n) {
+        setnprocs(n);
+    }
+
     void ConditionVariable::wait(std::mutex &mtx) {
         auto *gp = getg();
         waiters_.push_back(gp);

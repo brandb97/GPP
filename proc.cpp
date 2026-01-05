@@ -13,6 +13,9 @@
 
 extern int main();
 
+int64_t GPPMAXPROC = 64;
+int64_t USERSPECMAXPROCS = -1;
+
 M m0;
 GPP g0;
 
@@ -86,13 +89,18 @@ void stopm() {
     mp->status = M::RUNNING;
 }
 
+static bool reachmaxprocs() {
+    int64_t maxprocs = nprocs();
+    return maxprocs > 0 && sched.nrunningms >= maxprocs;
+}
+
 void wakem() {
     /* We must already hold sched.lock in caller
      * I don't know if there are better ways to
      * test `mustHeldLock` */
     assert(!sched.lock.try_lock());
 
-    if (sched.nidlems == 0 && sched.nms < GPPMAXPROC) {
+    if (sched.nidlems == 0 && !reachmaxprocs()) {
         /* start new m */
         sched.nms++;
         sched.nrunningms++;
@@ -262,6 +270,17 @@ static void main_main() {
     sched.mainstarted = true;
     int ret = main();
     exit(ret);
+}
+
+void setnprocs(int64_t n) {
+    USERSPECMAXPROCS = n;
+}
+
+int64_t nprocs() {
+    if (USERSPECMAXPROCS < 0 || USERSPECMAXPROCS > GPPMAXPROC) {
+        return GPPMAXPROC;
+    }
+    return USERSPECMAXPROCS;
 }
 
 extern "C" {
