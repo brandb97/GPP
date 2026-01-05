@@ -4,7 +4,7 @@ Lightweight C++ library that provides cooperative user-level context switching p
 
 ## Highlights
 
-- Small, self-contained C++ source files: `gpp.cpp`, `proc.cpp`, `tls.cpp` and a small assembly startup `start.s`.
+- Small C++ source files that only depend on C/C++ standard library: `gpp.cpp`, `proc.cpp`, `tls.cpp` and a small assembly startup `start.s`.
 - Produces a static library `libgpp.a` via the top-level `Makefile`.
 - Includes basic tests/examples under `test/` (hello, ping-pong, wait).
 
@@ -18,15 +18,15 @@ Lightweight C++ library that provides cooperative user-level context switching p
 From the project root, simply run:
 
 ```sh
-make
+make PREFIX=your/install/directory install
 ```
+
+will install `libgpp.a` and `gpp.h` in `your/install/directory/lib` and `your/install/directory/include`.
 
 Targets of interest:
 
-- `all` (default): builds `libgpp.a`.
 - `test`: builds the library and runs the top-level test driver which in turn runs test programs.
 - `clean`: removes object files and the library and runs `make clean` in `test/`.
-- `install`: installs the library and header to `/usr/local` by default (honors `PREFIX`).
 
 To build and run the tests:
 
@@ -40,24 +40,14 @@ or you can run the test script directly (it ensures `test/` is built):
 ./test/test.sh
 ```
 
-## Running the example tests
+## Use `libgpp.a`
 
-The `test/` directory contains small example programs:
-
-- `test/hello.cpp` — basic usage example.
-- `test/pingpong.cpp` — basic context-switching or coroutine exchange demonstration.
-- `test/wait.cpp` — synchronization/wait example.
-
-The test harness builds the examples and runs a set of test scripts `test/test_*.sh`. Use `make -C test` to build only the tests.
-
-If you prefer to build an example manually against the produced static library:
+To use `libapp.a`, you need to add the following lines into your Makefile
 
 ```sh
-g++ -I. -o hello test/hello.cpp libgpp.a
-./hello
+LDFLAGS += -Lyour/install/directory/lib -lgpp -nostartfiles
+CFLAGS += -Iyour/install/directory/include
 ```
-
-(The project test Makefile may provide the exact flags; consult `test/Makefile` for details.)
 
 ## API usage
 
@@ -127,11 +117,13 @@ int main() {
 }
 ```
 
+You could check the `test/*.cpp` for example use cases.
+
 Lower-level notes:
 
 - The runtime creates user-level contexts (`GPP`) with their own stacks and schedules them onto a pool of OS threads (`M`).
 - Prefer the higher-level helpers (`go`, `gpp::WaitGroup`, and `gpp::ConditionVariable`) for common patterns.
-- `gpp::Exit()` should be used to terminate the current routine when you need to ensure cleanup on the system stack; otherwise returning from the goroutine's entry function will also terminate it.
+- `gpp::Exit()` should be used to immediately terminate the current routine when you want to exit; otherwise returning from the goroutine's entry function will also terminate it.
 
 For complete examples, see `test/pingpong.cpp` and `test/wait.cpp` which demonstrate `go`, `gpp::Sched()`, and `gpp::WaitGroup` usage.
 
@@ -155,14 +147,7 @@ Suggested workflow:
 3. Add/modify tests under `test/` if applicable and ensure `make test` passes.
 4. Open a pull request describing the change.
 
-## License
-
-This repository does not include an explicit license file. If you want to use or distribute this code, please add a `LICENSE` file or ask the maintainers to declare a license.
-
 ## Notes
 
 - The project is intended for educational and experimental use. It is not hardened for production.
 - If you want me to expand this README with API examples (small code snippets showing how to create contexts and switch them), tell me which functions you want documented or I can scan the headers and add usage examples.
-
----
-Generated/updated on 2026-01-05.

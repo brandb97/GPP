@@ -7,8 +7,6 @@ PREFIX ?= /usr/local
 LIBDIR = $(PREFIX)/lib
 INCDIR = $(PREFIX)/include
 
-all: libgpp.a
-
 libgpp.a: start.o proc.o tls.o gpp.o
 	$(AR) rcs libgpp.a start.o proc.o tls.o gpp.o
 
