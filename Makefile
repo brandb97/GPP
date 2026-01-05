@@ -3,6 +3,10 @@ LD = ld
 AR = ar
 CFLAGS = -Wall -Wextra -O0 -g
 
+PREFIX ?= /usr/local
+LIBDIR = $(PREFIX)/lib
+INCDIR = $(PREFIX)/include
+
 all: libgpp.a
 
 libgpp.a: start.o proc.o tls.o gpp.o
@@ -26,3 +30,10 @@ clean:
 
 test: test/test.sh libgpp.a
 	./test/test.sh
+
+install: libgpp.a
+	mkdir -p $(LIBDIR)
+	cp libgpp.a $(LIBDIR)/libgpp.a
+	mkdir -p $(INCDIR)
+	cp gpp.hpp $(INCDIR)/gpp.hpp
+

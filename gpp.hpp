@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <mutex>
 #include <vector>
-#include "proc.hpp"
 
 extern void go(void (*fn)());
 

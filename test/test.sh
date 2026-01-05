@@ -7,6 +7,10 @@ if [ "${pwd##*/}" != "G++" ]; then
   exit 1
 fi
 
+if [ -d "tmp" ]; then
+  rm -rf tmp
+fi
+
 cd test
 make
 cd ..
