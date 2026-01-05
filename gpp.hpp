@@ -7,9 +7,12 @@
 #include "proc.hpp"
 
 extern void go(void (*fn)());
-extern void gppsched();
 
 namespace gpp {
+    extern void Sched();
+
+    extern void Exit();
+
     class ConditionVariable {
     public:
         ConditionVariable() = default;

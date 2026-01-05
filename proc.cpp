@@ -196,7 +196,7 @@ static void gppexit_systemstack() {
     schedule();
 }
 
-static void gppexit() {
+void gppexit() {
     auto *fn = reinterpret_cast<void (*)(void *)>(&gppexit_systemstack);
     systemstack(fn, nullptr);
 }

@@ -59,6 +59,7 @@ extern void mexit();
 extern void schedule();
 extern void newproc(void (*fn)());
 extern void gppsched();
+extern void gppexit();
 extern void gpppark();
 extern void gppunpark(GPP *gp);
 

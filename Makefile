@@ -1,11 +1,12 @@
 CXX = g++
 LD = ld
+AR = ar
 CFLAGS = -Wall -Wextra -O0 -g
 
-all: libgpp.o example.exe
+all: libgpp.a
 
-libgpp.o: start.o proc.o tls.o gpp.o
-	$(LD) -r start.o proc.o tls.o gpp.o -o libgpp.o
+libgpp.a: start.o proc.o tls.o gpp.o
+	$(AR) rcs libgpp.a start.o proc.o tls.o gpp.o
 
 start.o: start.s
 	$(CXX) $(CFLAGS) -c start.s -o start.o
@@ -19,9 +20,9 @@ tls.o: tls.cpp
 gpp.o: gpp.cpp
 	$(CXX) $(CFLAGS) -c gpp.cpp -o gpp.o
 
-example.exe: example/hello.cpp libgpp.o
-	$(CXX) $(CFLAGS) -I. example/hello.cpp libgpp.o -nostartfiles -o example.exe
-
 clean:
-	rm -f *.o example.exe example/hello.o
+	rm -f *.o *.a
+	make -C test clean
 
+test: test/test.sh libgpp.a
+	./test/test.sh

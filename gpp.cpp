@@ -13,6 +13,14 @@ void go(void (*fn)()) {
 }
 
 namespace gpp {
+    void Sched() {
+        gppsched();
+    }
+
+    void Exit() {
+        gppexit();
+    }
+
     void ConditionVariable::wait(std::mutex &mtx) {
         auto *gp = getg();
         waiters_.push_back(gp);
